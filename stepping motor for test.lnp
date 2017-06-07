@@ -1,0 +1,7 @@
+".\Objects\STARTUP.obj",
+".\Objects\intr.obj",
+".\Objects\key.obj",
+".\Objects\main.obj",
+".\Objects\motor.obj" 
+TO ".\Objects\stepping motor for test" 
+PRINT(".\Listings\stepping motor for test.m51") RAMSIZE(256) 

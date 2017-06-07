@@ -1,0 +1,188 @@
+C51 COMPILER V9.56.0.0   MOTOR                                                             06/07/2017 11:25:54 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MOTOR
+OBJECT MODULE PLACED IN .\Objects\motor.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE motor.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\mot
+                    -or.lst) TABS(2) OBJECT(.\Objects\motor.obj)
+
+line level    source
+
+   1          #include <reg52.h>
+   2          #include "sys_type.h"
+   3          #include "motor.h"
+   4          #include "key.h"
+   5          #include "intr.h"
+   6          
+   7          bit Flag_StepCntFwd = 0;  //正转计数标记位
+   8          bit Flag_StepCntRev = 0;  //反转计数标记位
+   9          bit Flag_StepCntFwdNoLimit = 0; //无限正转计数标记位
+  10          bit Flag_StepCntRevNoLimit = 0; //无限反转计数标记位
+  11          LONG beats = 0; //电机转动节拍总数
+  12          
+  13          #ifdef TWO_TWO_STEPS
+              UCHAR code BeatCode[2][4] = {
+              #elif defined ONE_TWO_STEPS
+  16          UCHAR code BeatCode[2][8] = {
+  17          #endif
+  18          #ifdef TWO_TWO_STEPS
+                /*********************************
+                  BJB B1856GW Board
+                *********************************/
+                {0x0C, 0x06, 0x03, 0x09},
+                {0x09, 0x03, 0x06, 0x0C}
+              #elif defined ONE_TWO_STEPS
+  25          //  {0x08, 0x0C, 0x04, 0x06, 0x02, 0x03, 0x01, 0x09},
+  26            {0x01, 0x03, 0x02, 0x06, 0x04, 0x0C, 0x08, 0x09},
+  27          /*  1000  1100  0100  0110  0010  0011  0001  1001 */
+  28          /*  A   AB    B   BC    C   CD    D   DA   */
+  29          //  {0x08, 0x09, 0x01, 0x03, 0x02, 0x06, 0x04, 0x0C}
+  30            {0x01, 0x09, 0x08, 0x0C, 0x04, 0x06, 0x02, 0x03}
+  31          /*  1000  1001  0001  0011  0010  0110  0100  1100 */
+  32          /*  A   AD    D   DC    C   CB    B   BA   */
+  33          #endif
+  34          };
+  35          
+  36          /* 步进电机启动函数，angle-需转过的角度 */
+  37          void StartMotorAng(LONG angle)
+  38          {
+  39   1        EA = 0;
+  40   1      #ifdef KINGST_BOARD
+                beats = (angle * 4076) / 360; //实测为4076拍转动一圈
+              #endif
+  43   1      #ifdef TWO_TWO_STEPS
+                if(angle == 0xFF){//使用0xFF设置步进电机无限循环
+                  beats = 0xFF;
+                }else if(angle == (-0xFF)){//使用-0xFF设置步进电机无限循环
+                  beats = -0xFF;
+                }else{
+                  beats = (angle * 2048) / 360; //理论为2048拍转动一圈
+                }
+              #elif defined ONE_TWO_STEPS
+  52   1        if(angle == 0xFF){//使用0xFF设置步进电机无限循环
+  53   2          beats = 0xFF;
+  54   2        }else if(angle == (-0xFF)){//使用-0xFF设置步进电机无限循环
+C51 COMPILER V9.56.0.0   MOTOR                                                             06/07/2017 11:25:54 PAGE 2   
+
+  55   2          beats = -0xFF;
+  56   2        }else{
+  57   2          beats = (angle * 4096) / 360; //理论为4096拍转动一圈
+  58   2        }
+  59   1      #endif
+  60   1        EA = 1;
+  61   1      }
+  62          
+  63          void StartMotorStepFwd(LONG steps)
+  64          {
+  65   1        if(Flag_StallFwd == 0){
+  66   2          EA = 0;
+  67   2          beats = steps;  
+  68   2          EA = 1;
+  69   2        }else{
+  70   2          Flag_StallFwd = 0;
+  71   2          steps = 0;
+  72   2          beats = 0;
+  73   2      //    Flag_StepCntFwdNoLimit = 1;
+  74   2      //    StartMotorAng(0xFF);
+  75   2          Flag_StepCntRevNoLimit = 1; //设定步数走完，无限反转，方便辨识
+  76   2          StartMotorAng(-0xFF); //设定步数走完，无限反转，方便辨识
+  77   2        }
+  78   1      }
+  79          
+  80          void StartMotorStepRev(LONG steps)
+  81          {
+  82   1        if(Flag_StallRev == 0){
+  83   2          EA = 0;
+  84   2          beats = steps;  
+  85   2          EA = 1;
+  86   2        }else{
+  87   2          Flag_StallRev = 0;
+  88   2          steps = 0;
+  89   2          beats = 0;
+  90   2      //    Flag_StepCntRevNoLimit = 1;
+  91   2      //    StartMotorAng(-0xFF);
+  92   2          Flag_StepCntFwdNoLimit = 1;
+  93   2          StartMotorAng(0xFF);
+  94   2        }
+  95   1      }
+  96          
+  97          /* 步进电机停止函数 */
+  98          void StopMotor(void)
+  99          {
+ 100   1        EA = 0;
+ 101   1        beats = 0;
+ 102   1        EA = 1;
+ 103   1      }
+ 104          
+ 105          /* 电机转动控制函数 */
+ 106          void TurnMotor()
+ 107          {
+ 108   1        UCHAR tmp;  //临时变量
+ 109   1        static UCHAR index = 0; //节拍输出索引
+ 110   1          
+ 111   1        if(beats){//节拍数不为0则产生一个驱动节拍
+ 112   2          if(beats > 0){//节拍数大于0时正转
+ 113   3            index++;  //正转时节拍输出索引递增
+ 114   3      #ifdef ONE_TWO_STEPS
+ 115   3            index = index & 0x07; //用&操作实现到8归零
+ 116   3      #elif defined TWO_TWO_STEPS
+C51 COMPILER V9.56.0.0   MOTOR                                                             06/07/2017 11:25:54 PAGE 3   
+
+                    index = index & 0x0B; //用&操作实现到4归零
+              #endif
+ 119   3            if(Flag_StepCntFwdNoLimit == 1 && beats == 0xFF){
+ 120   4              ;
+ 121   4            }else{
+ 122   4              beats--;  //正转时节拍计数递减
+ 123   4            }
+ 124   3          }else{//节拍数小于0时反转
+ 125   3            index++;  //反转时节拍输出索引递增
+ 126   3      #ifdef ONE_TWO_STEPS
+ 127   3            index = index & 0x07; //用&操作同样可以实现到-1时归7
+ 128   3      #elif defined TWO_TWO_STEPS
+                    index = index & 0x0B; //用&操作实现到4归零
+              #endif
+ 131   3            if(Flag_StepCntRevNoLimit == 1 && beats == (-0xFF)){
+ 132   4              ;
+ 133   4            }else{
+ 134   4              beats++;  //反转时节拍计数递减
+ 135   4            }
+ 136   3          }
+ 137   2          tmp = P1; //用tmp把P1口当前值暂存
+ 138   2          tmp = tmp & 0xF0; //用&操作清零低4位
+ 139   2          if(beats > 0){
+ 140   3            tmp = tmp | BeatCode[0][index]; //用|操作把节拍代码写到低4位
+ 141   3          }else{
+ 142   3            tmp = tmp | BeatCode[1][index]; //用|操作把节拍代码写到低4位
+ 143   3          }
+ 144   2          P1  = tmp;  //把低4位的节拍代码和高4位的原值送回P1
+ 145   2        }else{//节拍数为0则关闭电机所有的相
+ 146   2      #ifdef KINGST_BOARD
+                /*********************************
+                  金沙滩51 Developer Board
+                *********************************/
+                  P1 = P1 | 0x0F;
+              #else
+ 152   2          P1 = P1 & 0x00;
+ 153   2      #endif
+ 154   2          index = 0;
+ 155   2          Flag_StepCntFwdNoLimit = 0;
+ 156   2          Flag_StepCntRevNoLimit = 0;
+ 157   2          Flag_StepCntFwd = 0;
+ 158   2          Flag_StepCntRev = 0;
+ 159   2        }
+ 160   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    425    ----
+   CONSTANT SIZE    =     16    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      5      13
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      4    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

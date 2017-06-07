@@ -1,0 +1,175 @@
+C51 COMPILER V9.56.0.0   KEY                                                               06/07/2017 11:25:54 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE KEY
+OBJECT MODULE PLACED IN .\Objects\key.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE key.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\key.l
+                    -st) TABS(2) OBJECT(.\Objects\key.obj)
+
+line level    source
+
+   1          #include "sys_type.h"
+   2          #include "mcr_bit.h"
+   3          #include "key.h"
+   4          #include "motor.h"
+   5          
+   6          #ifdef TWO_TWO_STEPS
+              #define KEY_PRESS_CNT 70    //°´¼üÔË×ª½áÊøºó¶Â×ªÇåÁã
+              #elif defined ONE_TWO_STEPS
+   9          //#define KEY_PRESS_CNT (((360 - MOTOR_UNREACHABLE_OFFSET) / MOTOR_ONE_STEP_ANG) * 64)  //°´¼üÔË×ª½áÊøºó¶Â×
+             -ªÇåÁã(124²½)
+  10          #define KEY_PRESS_CNT 115
+  11          #endif
+  12          
+  13          bit Flag_StallFwd = 0;  //¶Â×ªÕý×ª¼ÆÊý±ê¼ÇÎ»
+  14          bit Flag_StallRev = 0;  //¶Â×ª·´×ª¼ÆÊý±ê¼ÇÎ»
+  15          #ifdef AUTO_STALL_STOP
+              bit Flag_StopNoLimit = 0;
+              bit Flag_Stop = 0;
+              #endif
+  19          static UCHAR keyCntFwd = 0; //ÕýÏò°´¼ü´ÎÊý¼ÆÊý
+  20          static UCHAR keyCntRev = 0; //·´Ïò°´¼ü´ÎÊý¼ÆÊý
+  21          
+  22          UCHAR code KeyCodeMap[4][4] = { //¾ØÕó°´¼ü±àºÅµ½±ê×¼¼üÅÌ¼üÂëµÄÓ³Éä±í
+  23            { 0x31, 0x32, 0x33, 0x26 }, //Êý×Ö¼ü1¡¢Êý×Ö¼ü2¡¢Êý×Ö¼ü3¡¢ÏòÉÏ¼ü
+  24            { 0x34, 0x35, 0x36, 0x25 }, //Êý×Ö¼ü4¡¢Êý×Ö¼ü5¡¢Êý×Ö¼ü6¡¢Ïò×ó¼ü
+  25            { 0x37, 0x38, 0x39, 0x28 }, //Êý×Ö¼ü7¡¢Êý×Ö¼ü8¡¢Êý×Ö¼ü9¡¢ÏòÏÂ¼ü
+  26            { 0x30, 0x1B, 0x0D, 0x27 }  //Êý×Ö¼ü0¡¢ESC¼ü¡¢  »Ø³µ¼ü¡¢ ÏòÓÒ¼ü
+  27          };
+  28          
+  29          UCHAR KeySta[4][4] = {//È«²¿¾ØÕó°´¼üµÄµ±Ç°×´Ì¬
+  30            {1, 1, 1, 1},
+  31            {1, 1, 1, 1},
+  32            {1, 1, 1, 1},
+  33            {1, 1, 1, 1}
+  34          };
+  35          
+  36          /* °´¼ü¶¯×÷º¯Êý£¬¸ù¾Ý¼üÂëÖ´ÐÐÏàÓ¦µÄ²Ù×÷£¬keycode-°´¼ü¼üÂë */
+  37          void KeyAction(UCHAR keycode)
+  38          { 
+  39   1        if((keycode>=0x30) && (keycode<=0x39)){  //¿ØÖÆµç»ú×ª¶¯1-9È¦
+  40   2          ;
+  41   2        }else if(keycode == 0x26){//ÏòÉÏ¼ü£¬¿ØÖÆ×ª¶¯·½ÏòÎªÕý×ª
+  42   2          Flag_StepCntFwdNoLimit = 1;
+  43   2          StartMotorAng(0xFF);
+  44   2        }else if(keycode == 0x28){//ÏòÏÂ¼ü£¬¿ØÖÆ×ª¶¯·½ÏòÎª·´×ª
+  45   2          Flag_StepCntRevNoLimit = 1;
+  46   2          StartMotorAng(-0xFF);
+  47   2        }else if(keycode == 0x25){//Ïò×ó¼ü£¬¹Ì¶¨Õý×ª30²½
+  48   2          Flag_StepCntFwd = 1;
+  49   2          keyCntFwd++;
+  50   2          if(keyCntFwd >= KEY_PRESS_CNT){
+  51   3            keyCntFwd = 0;
+  52   3            keyCntRev = 0;
+  53   3            Flag_StallFwd = 1;
+C51 COMPILER V9.56.0.0   KEY                                                               06/07/2017 11:25:54 PAGE 2   
+
+  54   3          }
+  55   2          StartMotorStepFwd(30);  //ÕýÏòÔË×ª64²½£¬¼õËÙ±È1/64£¬Ô¼11.25¡ã£¬32´Î×ßÍê
+  56   2        }else if(keycode == 0x27){//ÏòÓÒ¼ü£¬¹Ì¶¨·´×ª30²½
+  57   2          Flag_StepCntRev = 1;
+  58   2          keyCntRev++;
+  59   2          if(keyCntRev >= KEY_PRESS_CNT){
+  60   3            keyCntRev = 0;
+  61   3            keyCntFwd = 0;
+  62   3            Flag_StallRev = 1;
+  63   3          }
+  64   2          StartMotorStepRev(-30); //·´ÏòÔË×ª64²½£¬¼õËÙ±È1/64£¬Ô¼11.25¡ã£¬32´Î×ßÍê
+  65   2        }else if(keycode == 0x1B){//Esc¼ü£¬Í£Ö¹×ª¶¯
+  66   2          StopMotor();
+  67   2        }
+  68   1      }
+  69          
+  70          /* °´¼üÇý¶¯º¯Êý£¬¼ì²â°´¼ü¶¯×÷£¬µ÷¶ÈÏàÓ¦¶¯×÷º¯Êý£¬ÐèÔÚÖ÷Ñ­»·ÖÐµ÷ÓÃ */
+  71          void KeyDriver(void)
+  72          {
+  73   1        UCHAR i, j;
+  74   1      
+  75   1        static UCHAR backup[4][4] = {//°´¼üÖµ±¸·Ý£¬±£´æÇ°Ò»´ÎµÄÖµ
+  76   1          {1, 1, 1, 1},  
+  77   1          {1, 1, 1, 1},  
+  78   1          {1, 1, 1, 1}, 
+  79   1          {1, 1, 1, 1}
+  80   1        };
+  81   1        
+  82   1        for(i=0; i<4; i++){//Ñ­»·¼ì²â4*4µÄ¾ØÕó°´¼ü
+  83   2          for(j=0; j<4; j++){
+  84   3            if(backup[i][j] != KeySta[i][j]){//¼ì²â°´¼ü¶¯×÷
+  85   4              if (backup[i][j] != 0){//°´¼ü°´ÏÂÊ±Ö´ÐÐ¶¯×÷
+  86   5                KeyAction(KeyCodeMap[i][j]);  //µ÷ÓÃ°´¼ü¶¯×÷º¯Êý
+  87   5              }
+  88   4            backup[i][j] = KeySta[i][j];  //Ë¢ÐÂÇ°Ò»´ÎµÄ±¸·ÝÖµ
+  89   4            }
+  90   3          }
+  91   2        }
+  92   1      }
+  93          
+  94          /* °´¼üÉ¨Ãèº¯Êý£¬ÐèÔÚ¶¨Ê±ÖÐ¶ÏÖÐµ÷ÓÃ£¬ÍÆ¼öµ÷ÓÃ¼ä¸ô1ms */
+  95          void KeyScan(void)
+  96          {
+  97   1          UCHAR i;
+  98   1        
+  99   1        
+ 100   1        static UCHAR keyout = 0;   //¾ØÕó°´¼üÉ¨ÃèÊä³öË÷Òý
+ 101   1        static UCHAR keybuf[4][4] = {//¾ØÕó°´¼üÉ¨Ãè»º³åÇø
+ 102   1             {0xFF, 0xFF, 0xFF, 0xFF},  
+ 103   1             {0xFF, 0xFF, 0xFF, 0xFF},
+ 104   1             {0xFF, 0xFF, 0xFF, 0xFF}, 
+ 105   1             {0xFF, 0xFF, 0xFF, 0xFF}
+ 106   1        };
+ 107   1      
+ 108   1          //½«Ò»ÐÐµÄ4¸ö°´¼üÖµÒÆÈë»º³åÇø
+ 109   1          keybuf[keyout][0] = (keybuf[keyout][0] << 1) | KEY_IN_1;
+ 110   1          keybuf[keyout][1] = (keybuf[keyout][1] << 1) | KEY_IN_2;
+ 111   1          keybuf[keyout][2] = (keybuf[keyout][2] << 1) | KEY_IN_3;
+ 112   1          keybuf[keyout][3] = (keybuf[keyout][3] << 1) | KEY_IN_4;
+ 113   1          //Ïû¶¶ºó¸üÐÂ°´¼ü×´Ì¬
+ 114   1          for (i=0; i<4; i++){//Ã¿ÐÐ4¸ö°´¼ü£¬ËùÒÔÑ­»·4´Î
+ 115   2            if((keybuf[keyout][i] & 0x0F) == 0x00){//Á¬Ðø4´ÎÉ¨ÃèÖµÎª0£¬¼´4*4msÄÚ¶¼ÊÇ°´ÏÂ×´Ì¬Ê±£¬¿ÉÈÏÎª°´¼üÒÑÎÈ¶¨µÄ°
+C51 COMPILER V9.56.0.0   KEY                                                               06/07/2017 11:25:54 PAGE 3   
+
+             -´ÏÂ
+ 116   3              KeySta[keyout][i] = 0;
+ 117   3            }else if ((keybuf[keyout][i] & 0x0F) == 0x0F){//Á¬Ðø4´ÎÉ¨ÃèÖµÎª1£¬¼´4*4msÄÚ¶¼ÊÇµ¯Æð×´Ì¬Ê±£¬¿ÉÈÏÎª°´¼üÒÑ
+             -ÎÈ¶¨µÄµ¯Æð
+ 118   3              KeySta[keyout][i] = 1;
+ 119   3            }
+ 120   2          }
+ 121   1          //Ö´ÐÐÏÂÒ»´ÎµÄÉ¨ÃèÊä³ö
+ 122   1          keyout++; //Êä³öË÷ÒýµÝÔö
+ 123   1          keyout = keyout & 0x03;  //Ë÷ÒýÖµ¼Óµ½4¼´¹éÁã
+ 124   1          switch (keyout){         //¸ù¾ÝË÷Òý£¬ÊÍ·Åµ±Ç°Êä³öÒý½Å£¬À­µÍÏÂ´ÎµÄÊä³öÒý½Å
+ 125   2            case 0: 
+ 126   2              KEY_OUT_4 = 1; 
+ 127   2              KEY_OUT_1 = 0;
+ 128   2              break;
+ 129   2            case 1: 
+ 130   2              KEY_OUT_1 = 1; 
+ 131   2              KEY_OUT_2 = 0; 
+ 132   2              break;
+ 133   2            case 2: 
+ 134   2              KEY_OUT_2 = 1; 
+ 135   2              KEY_OUT_3 = 0; 
+ 136   2              break;
+ 137   2            case 3: 
+ 138   2              KEY_OUT_3 = 1; 
+ 139   2              KEY_OUT_4 = 0; 
+ 140   2              break;
+ 141   2            default:
+ 142   2              break;
+ 143   2          }
+ 144   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    454    ----
+   CONSTANT SIZE    =     16    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     51       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,47 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              06/07/2017 11:25:54 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          /********************************************************************************
+   2          * Name: main.c
+   3          * Description:stepping motor estimate
+   4          * Version: v1.0.0
+   5          * Author:Wei Birong
+   6          * Attribute: Modify
+   7          ********************************************************************************/
+   8          
+   9          #include <reg52.h>
+  10          #include "mcr_bit.h"
+  11          #include "sys_type.h"
+  12          #include "key.h"
+  13          #include "intr.h"
+  14          
+  15          void main(void)
+  16          {
+  17   1        intr_init();  //初始化中断
+  18   1        
+  19   1        while(1){
+  20   2          KeyDriver();   //调用按键驱动函数
+  21   2        }
+  22   1      }
+  23          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =      8    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
